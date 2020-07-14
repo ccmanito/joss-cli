@@ -25,6 +25,8 @@ func init() {
 		NewObjectListCommand(),
 		// put file file... oss://<bucket>/prefix
 		NewObjectPutCommand(),
+
+		NewSignUrlCommand(),
 	)
 }
 
@@ -58,6 +60,50 @@ func NewObjectPutCommand() *cobra.Command {
 	return bc
 }
 
+func NewSignUrlCommand() *cobra.Command {
+	bc := &cobra.Command{
+		Use:   "signurl oss://BUCKET/OBJECT <expiry>(10m|1h|1d)",
+		Short: "Sign an OSS URL to provide limited public access with expiry",
+
+		Run: signUrlCommandFunc,
+	}
+
+	return bc
+}
+
+func signUrlCommandFunc(cmd *cobra.Command, args []string) {
+	if len(args) != 2 {
+		ExitWithError(ExitBadArgs, fmt.Errorf("signurl command needs 2 argument. example: signurl oss://BUCKET/OBJECT <expiry>(10m|1h|1d).\n"))
+	}
+	param := args[0]
+	bucket := ""
+	key := ""
+	if strings.HasPrefix(param, "oss://") {
+		str := strings.SplitN(strings.TrimLeft(param, "oss://"), "/", 2)
+		if len(str) == 1 {
+			bucket = str[0]
+		} else if len(str) == 2 {
+			bucket = str[0]
+			key = str[1]
+		}
+	} else {
+		ExitWithError(ExitError, fmt.Errorf("bucket格式错误. Format: oss://bucket[/objectKey]"))
+	}
+	if bucket == "" {
+		ExitWithError(ExitError, fmt.Errorf("bucket不能为空. Format: oss://bucket[/objectKey]"))
+	}
+	expire, err := time.ParseDuration(args[1])
+	if err != nil {
+		ExitWithError(ExitError, fmt.Errorf("expiry error, example: signurl oss://BUCKET/OBJECT <expiry>(10m|1h|1d)"))
+	}
+	url, err := joss.New(Endpoint, AccessKey, SecretKey, JossType).
+		Bucket(bucket).GetObjectSignUrl(key, expire)
+	if err != nil {
+		ExitWithError(ExitError, err)
+	}
+	fmt.Println(url)
+}
+
 //获取对象存储列表
 func ossListCommandFunc(cmd *cobra.Command, args []string) {
 	//无附加参数获取bucket 列表
@@ -70,12 +116,12 @@ func ossListCommandFunc(cmd *cobra.Command, args []string) {
 	bucket := ""
 	prefix := ""
 	if strings.HasPrefix(param, "oss://") {
-		idx := strings.LastIndex(param[6:], "/")
-		if idx <= 0 {
-			bucket = param[6:]
-		} else {
-			bucket = param[6:idx]
-			prefix = param[6+idx:]
+		str := strings.SplitN(strings.TrimLeft(param, "oss://"), "/", 2)
+		if len(str) == 1 {
+			bucket = str[0]
+		} else if len(str) == 2 {
+			bucket = str[0]
+			prefix = str[1]
 		}
 	} else {
 		ExitWithError(ExitError, fmt.Errorf("bucket格式错误. Format: ls oss://bucket[/prefix]"))
@@ -112,9 +158,12 @@ func ossListCommandFunc(cmd *cobra.Command, args []string) {
 }
 
 func objectPutCommandFunc(cmd *cobra.Command, args []string) {
+	// 参数验证, 分片大小默认50 sdk默认5
+	if partSize < 5 {
+		partSize = 5
+	}
 	//解析参数
 	bucket, objPrefix, files := getPutOp(args)
-
 	// 批量上传进度条咋搞
 	jcli := joss.New(Endpoint, AccessKey, SecretKey, JossType)
 	// 	// 文件递归 -r
@@ -166,10 +215,10 @@ func objectPutCommandFunc(cmd *cobra.Command, args []string) {
 			speedHuman := ByteCountBinary(speed)
 			preConsumed = consumedBytes
 			// 589588 of 589588   100% in    0s     2.01 MB/s  done
-			fmt.Printf("\r%9d of %d\t%3.2f%% in\t%s\t%9s/s%s",
+			fmt.Printf("\r%13d of %d\t%3.2f%% in\t%s\t%9s/s%s",
 				consumedBytes, totalBytes, float32(consumedBytes*100)/float32(totalBytes),
 				((now.Sub(start) / time.Second) * time.Second).String(), speedHuman, done)
-		})); err != nil {
+		}), types.WithPartSize(partSize*1024*1024)); err != nil {
 			ExitWithError(ExitError, err)
 		}
 	}

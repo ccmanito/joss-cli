@@ -23,14 +23,15 @@ var (
 		SuggestFor: []string{"joss-cli"},
 	}
 
-	DebugFlag bool
-	AccessKey string
-	SecretKey string
-	Region    string
-	OssType   string
-	JossType  = joss.OssTypeJDCloud
-	Endpoint  string
-	Internal  bool
+	DebugFlag   bool
+	AccessKey   string
+	SecretKey   string
+	Region      string
+	OssType     string
+	JossType    = joss.OssTypeJDCloud
+	Endpoint    string
+	Internal    bool
+	VersionFlag bool
 
 	CommandTimeoutFlag string
 	CommandTimeout     time.Duration
@@ -43,15 +44,15 @@ func init() {
 	// configure add
 	cobra.EnablePrefixMatching = true
 	cobra.OnInitialize(initConfig)
+	RootCmd.SetVersionTemplate(version())
 
+	RootCmd.PersistentFlags().StringVar(&AccessKey, "accessKey", "", "oss accessKey env: JOSS_ACCESSKEY")
+	RootCmd.PersistentFlags().StringVar(&SecretKey, "secretKey", "", "oss secretKey env: JOSS_SECRETKEY")
 	RootCmd.PersistentFlags().BoolVarP(&DebugFlag, "debug", "d", false, "debug mode")
 	RootCmd.PersistentFlags().StringVar(&Endpoint, "endpoint", "", "oss endpoint")
 	RootCmd.PersistentFlags().StringVarP(&OssType, "oss-type", "t", "jd", "enable client-side debug logging")
-	RootCmd.PersistentFlags().StringVar(&AccessKey, "accessKey", "", "jcloud accessKey")
-	RootCmd.PersistentFlags().StringVar(&SecretKey, "secretKey", "", "jcloud accessKey")
 	RootCmd.PersistentFlags().StringVar(&Region, "region", "cn-north-1", "region")
 	RootCmd.PersistentFlags().BoolVar(&Internal, "internal", false, "is internal")
-
 	RootCmd.PersistentFlags().StringVar(&CommandTimeoutFlag, "command-timeout", "5s", "timeout for short running command")
 }
 
